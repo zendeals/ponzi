@@ -1,0 +1,9 @@
+nodes: 1000
+graph:
+    alpha: 0.00001
+    beta: 0.5
+    gamma: 0.49999
+    delta_in: 0.7
+    delta_out: 0.1
+template_files: []
+text_file: null
