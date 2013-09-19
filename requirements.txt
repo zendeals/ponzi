@@ -1,5 +1,5 @@
 argcomplete
 argh
+boto
 pyyaml
-networkx
 tornado

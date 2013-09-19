@@ -1,11 +1,15 @@
+import collections
 import logging
-import os
 import multiprocessing
-import time
+import os
+import random
+import shutil
+import zipfile
 
 import tornado.template
 
 import ponzi.graph
+import ponzi.s3
 
 
 class Ponzi(object):
@@ -14,19 +18,17 @@ class Ponzi(object):
         logging.info("Starting Ponzi")
         self.options = options
         self.nodes = self.options["nodes"]
-        self.idlen = len(str(self.nodes))
-        print self.idlen
         self.pagecount = 0
         self.options['textset'] = self.load_textset()
         self.options['textlen'] = len(self.options['textset'])
         self.options['templates'] = self.load_templates()
-        self.graph = self.generate_graph()
+        self.options['output_dir'] = self.setup_outputdir()
+        self.load_graph()
         self.queue = multiprocessing.Queue()
-        for node in xrange(self.nodes):
-            node_info = self.graph.get_node(node)
-            self.queue.put(node_info)
+        for node, edges in self.graph.items():
+            self.queue.put([node, edges])
         self.workers = []
-        for i in range(multiprocessing.cpu_count()):
+        for i in range(20):
             worker = multiprocessing.Process(target=ponzi_worker, args=(i, self.queue, self.options))
             worker.start()
             self.workers.append(worker)
@@ -61,19 +63,77 @@ class Ponzi(object):
             templates.append(template)
         return templates
 
-    def generate_graph(self):
-        return ponzi.graph.Graph(self.options["nodes"], self.options["graph"])
+    def load_graph(self):
+        graph_path = self.options["graph"]
+        nodes = self.options["nodes"]
+        maxnode = 0
+        if os.path.exists(os.path.abspath(graph_path)):
+            with zipfile.ZipFile(graph_path, "r") as zipf:
+                infolist = zipf.infolist()
+                rows = [row.strip() for row in zipf.read(infolist[0]).split("\n")]
+
+            self.graph = collections.defaultdict(list)
+            for row in rows:
+                try:
+                    node, edge = row.split("\t")
+                    if int(node) > maxnode:
+                        maxnode = int(node)
+                except ValueError:
+                    continue
+                if int(node) > nodes or int(edge) > nodes:
+                    continue
+                self.graph[int(node)].append(int(edge))
+        else:
+            raise Exception("Dataset does not exist: {}".format(graph_path))
+        logging.info("Max node: {}".format(maxnode))
+        for x in range(nodes):
+            logging.debug("Node test: {} {}".format(x, self.graph[x]))
+
+    def setup_outputdir(self):
+        dirpath = self.options["output_dir"]
+        if not dirpath:
+            dirpath = "/tmp/ponzi"
+            logging.info("Using default temp directory: {}".format(dirpath))
+        else:
+            logging.info("Using temp directory: {}".format(dirpath))
+        if os.path.isdir(dirpath):
+            logging.info("Clearing directory: {}".format(dirpath))
+            shutil.rmtree(dirpath)
+        logging.info("Making directory: {}".format(dirpath))
+        os.mkdir(dirpath)
+        return dirpath
 
 
 def ponzi_worker(worker_id, queue, options):
     logging.debug("{} initialized".format(worker_id))
+    s3 = None
+    if options["s3"]["use"]:
+        s3 = ponzi.s3.S3(options["s3"])
+        logging.warning("Setup S3")
     while queue.qsize() > 0:
-        item = queue.get(timeout=1)
-        logging.debug("{} got: {}".format(worker_id, item))
-        ponzi_process(item)
+        page_id, out_nodes = queue.get(timeout=1)
+        logging.debug("{} got: {}".format(worker_id, page_id))
+        ponzi_process(page_id, out_nodes, options, s3=s3)
     logging.info("{} finished".format(worker_id))
     return
 
 
-def ponzi_process(item):
-    print item
+def ponzi_process(page_id, out_nodes, options, s3=None):
+    templates = options["templates"]
+    text = options["textset"]
+    output_dir = options["output_dir"]
+
+    # select random template from templates
+    template = random.choice(templates)
+    content_len = random.randint(1, options["textlen"])
+    content = ["<p>{}</p>".format(paragraph) for paragraph in [random.choice(text) for _ in range(content_len)]]
+    for node in out_nodes:
+        link = """<a href="/{0}.html">Node {0}</a>""".format(node)
+        content.insert(random.randint(1, content_len), link)
+    page = template.generate(title=page_id, content="\n".join(content))
+    file_name = "{}.html".format(page_id)
+    out_file = os.path.join(output_dir, file_name)
+    with open(out_file, "w") as f:
+        f.write(page)
+    if options["s3"]["use"]:
+        s3.send_file(out_file, file_name)

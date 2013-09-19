@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html lang="en-US">
     <head>
-        <title>{% block title %}{{ title }}{% end %}</title>
+        <title>{% block title %}{% raw title %}{% end %}</title>
          
         <meta charset="windows-1252">
         <meta name="Keywords" content="">
     </head>
     <body>
-        {% block content %}{{ content }}{% end %}
+        {% block content %}{% raw content %}{% end %}
     </body>
 </html>

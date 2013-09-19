@@ -11,6 +11,6 @@ setuptools.setup(
             'ponzi = ponzi.cli:main'
         ]
     },
-    data_files=['lorem.txt', 'config.yaml', 'template.html'],
+    data_files=['lorem.txt', 'config.yaml', 'template.html', 'datasets/notredame.zip', 'datasets/stanford.zip'],
     install_requires=[x for x in open('requirements.txt').readlines()]
 )
