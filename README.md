@@ -9,3 +9,13 @@ Installation
 ============
 
 `sudo pip install -r requirements.txt`
+
+Dependencies
+============
+```
+argcomplete
+argh
+boto
+pyyaml
+tornado
+```
