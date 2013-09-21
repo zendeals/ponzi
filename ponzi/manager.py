@@ -8,12 +8,10 @@ import zipfile
 
 import tornado.template
 
-import ponzi.graph
 import ponzi.s3
 
 
 class Ponzi(object):
-
     def __init__(self, options):
         logging.info("Starting Ponzi")
         self.options = options
