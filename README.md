@@ -8,7 +8,11 @@ Network topography is generated through pregenerated site graphs.
 Installation
 ============
 
-`sudo pip install -r requirements.txt`
+```
+git clone git@github.com:zendeals/ponzi.git
+cd ponzi
+sudo python setup.py install
+```
 
 Dependencies
 ============
